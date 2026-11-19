@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SentinelaDengue API</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #fafafa; color: #3b4151; }
+  header { background: #1b1b1b; color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 20px; }
+  header h1 span { font-size: 12px; background: #89bf04; color: #fff; padding: 2px 8px; border-radius: 10px; margin-left: 8px; vertical-align: middle; }
+  header label { margin-left: auto; font-size: 13px; }
+  header input { width: 320px; padding: 6px 8px; border-radius: 4px; border: none; margin-left: 6px; }
+  main { max-width: 1000px; margin: 24px auto; padding: 0 16px; }
+  h2 { font-size: 22px; border-bottom: 1px solid #ddd; padding-bottom: 8px; margin-top: 32px; }
+  .op { border-radius: 4px; margin-bottom: 10px; border: 1px solid; }
+  .op summary { display: flex; align-items: center; gap: 12px; padding: 8px; cursor: pointer; list-style: none; }
+  .op summary::-webkit-details-marker { display: none; }
+  .m { min-width: 70px; text-align: center; font-weight: 700; color: #fff; border-radius: 3px; padding: 6px 0; font-size: 13px; }
+  .path { font-family: monospace; font-weight: 600; font-size: 15px; }
+  .desc { font-size: 13px; color: #555; }
+  .GET { background: #ebf3fb; border-color: #61affe; } .GET .m { background: #61affe; }
+  .POST { background: #e8f6f0; border-color: #49cc90; } .POST .m { background: #49cc90; }
+  .PUT { background: #fbf1e6; border-color: #fca130; } .PUT .m { background: #fca130; }
+  .DELETE { background: #fae7e7; border-color: #f93e3e; } .DELETE .m { background: #f93e3e; }
+  .body { background: #fff; padding: 14px; border-top: 1px solid #ddd; }
+  .body label { display: block; font-size: 13px; font-weight: 600; margin: 8px 0 4px; }
+  .body input, .body textarea { width: 100%; font-family: monospace; font-size: 13px; padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
+  .body textarea { min-height: 150px; }
+  button { margin-top: 10px; background: #4990e2; color: #fff; border: none; padding: 8px 22px; border-radius: 4px; font-weight: 600; cursor: pointer; }
+  button:hover { background: #3a7bc8; }
+  .resp { margin-top: 12px; display: none; }
+  .resp .status { font-weight: 700; margin-bottom: 4px; font-size: 13px; }
+  .resp pre { background: #333; color: #fff; padding: 10px; border-radius: 4px; overflow: auto; max-height: 350px; margin: 0; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SentinelaDengue API <span>v1.0</span></h1>
+  <label>Base URL <input id="base" placeholder="mesma origem"></label>
+</header>
+<main id="app"></main>
+<script>
+const examples = {
+  morador: { id: 0, nome: "Maria Silva", telefone: "11999999999", rua: "Rua das Flores", numero: "123", quarteirao: "Q1" },
+  relato: { id: 0, fk_morador: 1, tipo: "Água parada", local: "Quintal", status: "PENDENTE" },
+  leitura: { id: 0, codigo: "SENT-001", ovos: 12, nivel_agua: 3.5, temperatura: 28.4, umidade: 70.2, data_hora: new Date().toISOString() }
+};
+const groups = [
+  { tag: "Morador", res: "morador" },
+  { tag: "Relato", res: "relato", extra: [
+    { method: "PUT", path: "/relato/{id}/confirmar", desc: "Confirma um relato" },
+    { method: "PUT", path: "/relato/{id}/descartar", desc: "Descarta um relato" } ] },
+  { tag: "Leitura", res: "leitura" }
+];
+function opsFor(g) {
+  const r = "/" + g.res;
+  return [
+    { method: "GET", path: r, desc: "Lista todos" },
+    { method: "GET", path: r + "/{id}", desc: "Busca por ID" },
+    { method: "POST", path: r, desc: "Cadastra novo", body: examples[g.res] },
+    { method: "PUT", path: r, desc: "Atualiza (envie o id no corpo)", body: examples[g.res] },
+    { method: "DELETE", path: r + "/{id}", desc: "Remove por ID" },
+    ...(g.extra || [])
+  ];
+}
+const app = document.getElementById("app");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+groups.forEach(g => {
+  const h = document.createElement("h2"); h.textContent = g.tag; app.appendChild(h);
+  opsFor(g).forEach(op => {
+    const d = document.createElement("details");
+    d.className = "op " + op.method;
+    const hasId = op.path.includes("{id}");
+    d.innerHTML = `<summary><span class="m">${op.method}</span><span class="path">${op.path}</span><span class="desc">${op.desc}</span></summary>
+      <div class="body">
+        ${hasId ? '<label>id (path)</label><input class="id" type="number" value="1">' : ""}
+        ${op.body ? '<label>Request body (JSON)</label><textarea class="json">' + esc(JSON.stringify(op.body, null, 2)) + "</textarea>" : ""}
+        <button>Execute</button>
+        <div class="resp"><div class="status"></div><pre></pre></div>
+      </div>`;
+    d.querySelector("button").onclick = () => run(op, d);
+    app.appendChild(d);
+  });
+});
+async function run(op, d) {
+  const base = document.getElementById("base").value.trim().replace(/\/$/, "");
+  let path = op.path;
+  const idEl = d.querySelector(".id");
+  if (idEl) path = path.replace("{id}", encodeURIComponent(idEl.value));
+  const opts = { method: op.method, headers: {} };
+  const ta = d.querySelector(".json");
+  if (ta) {
+    try { opts.body = JSON.stringify(JSON.parse(ta.value)); } catch (e) { return show(d, "JSON inválido", e.message, false); }
+    opts.headers["Content-Type"] = "application/json";
+  }
+  const url = base + path;
+  show(d, "Enviando...", opts.method + " " + url, true);
+  try {
+    const t0 = performance.now();
+    const res = await fetch(url, opts);
+    const ms = Math.round(performance.now() - t0);
+    const text = await res.text();
+    let out = text;
+    try { out = JSON.stringify(JSON.parse(text), null, 2); } catch (e) {}
+    const loc = res.headers.get("Location");
+    show(d, `${res.status} ${res.statusText} · ${ms} ms${loc ? " · Location: " + loc : ""}`, out || "(sem corpo)", res.ok);
+  } catch (e) {
+    show(d, "Erro de rede", e.message, false);
+  }
+}
+function show(d, status, body, ok) {
+  const r = d.querySelector(".resp");
+  r.style.display = "block";
+  const s = r.querySelector(".status");
+  s.textContent = status; s.style.color = ok ? "#2e7d32" : "#c62828";
+  r.querySelector("pre").textContent = body;
+}
+</script>
+</body>
+</html>
